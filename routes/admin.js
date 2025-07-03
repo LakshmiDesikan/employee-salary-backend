@@ -3,9 +3,29 @@ const fs = require("fs");
 const path = require("path");
 const router = express.Router();
 const filePath = path.join(__dirname, "../data.json");
+const sendEmail = require("../mailer");
+
 
 router.post("/create-user", (req, res) => {
-  const { username, password } = req.body;
+ const newUser = { username, password, role, email };
+ const usersPath = path.join(__dirname, "../users.json");
+  let users = [];
+
+  if (fs.existsSync(usersPath)) {
+    users = JSON.parse(fs.readFileSync(usersPath));
+  }
+
+  if (users.find(u => u.username === username)) {
+    return res.status(400).json({ message: "Username already exists" });
+  }
+
+  users.push(newUser);
+  fs.writeFileSync(usersPath, JSON.stringify(users, null, 2));
+   // ✅ Send welcome email after successful creation
+  sendEmail(newUser.email, "Welcome to Salary App", `Hi ${newUser.username}, your account is created!`);
+
+  res.json({ message: "User created successfully" });
+  const { username, password ,role,email} = req.body;
   const data = JSON.parse(fs.readFileSync(filePath));
   if (data.users.length >= 6) {
     return res.status(400).json({ message: "Maximum 6 users allowed" });
@@ -49,3 +69,6 @@ router.post("/reset", (req, res) => {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   res.json({ message: "All user data reset" });
 });
+
+
+

@@ -1,73 +1,144 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const router = express.Router();
-const sendEmail = require("../mailer");
+const backendURL = "https://employee-salary-backend.onrender.com";
 
-const filePath = path.join(__dirname, "../data.json");
+// Refresh and load all users
+function refresh() {
+  fetch(`${backendURL}/api/admin/list-users`)
+    .then(res => res.json())
+    .then(data => {
+      const list = document.getElementById("list");
+      list.innerHTML = "";
 
-// ✅ Create new user (max 6)
-router.post("/create-user", (req, res) => {
-  const { username, password, role, email } = req.body;
+      data.forEach(user => {
+        const li = document.createElement("li");
+        li.innerHTML = `${user.username} — `;
 
-  const data = fs.existsSync(filePath)
-    ? JSON.parse(fs.readFileSync(filePath))
-    : { users: [] };
+        // Date input
+        const dateInput = document.createElement("input");
+        dateInput.type = "date";
+        dateInput.value = user.salaryStatus?.date || "";
+        li.appendChild(dateInput);
 
-  if (data.users.length >= 6) {
-    return res.status(400).json({ message: "Maximum 6 users allowed" });
+        // Checkbox for isCredited
+        const creditCheckbox = document.createElement("input");
+        creditCheckbox.type = "checkbox";
+        creditCheckbox.checked = user.salaryStatus?.isCredited || false;
+        li.appendChild(creditCheckbox);
+
+        // Set button
+        const setBtn = document.createElement("button");
+        setBtn.innerText = "Set";
+        setBtn.onclick = () => {
+          const payload = {
+            username: user.username,
+            date: dateInput.value,
+            isCredited: creditCheckbox.checked
+          };
+          fetch(`${backendURL}/api/admin/set-salary`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          })
+          .then(res => res.json())
+          .then(result => {
+            alert(result.message);
+            refresh();
+          })
+          .catch(err => {
+            console.error("Set salary failed:", err);
+            alert("Failed to set salary");
+          });
+        };
+
+        li.appendChild(setBtn);
+        list.appendChild(li);
+      });
+    })
+    .catch(err => {
+      console.error("Error loading user list:", err);
+      document.getElementById("list").innerText = "Error loading users.";
+    });
+}
+
+// Create user
+function createUser() {
+  const username = document.getElementById("newu").value;
+  const password = document.getElementById("newp").value;
+  const role = document.getElementById("role").value;
+  const email = document.getElementById("email").value;
+
+  if (!username || !password || !email || !role) {
+    alert("Please fill all fields");
+    return;
   }
 
-  if (data.users.find(u => u.username === username)) {
-    return res.status(400).json({ message: "Username already exists" });
+  fetch(`${backendURL}/api/admin/create-user`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, role, email })
+  })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("res").innerText = data.message;
+      refresh();
+    })
+    .catch(err => {
+      console.error("Create user error:", err);
+      alert("Error creating user");
+    });
+}
+
+// Change password
+function changePassword() {
+  const oldPassword = document.getElementById("oldPass").value;
+  const newPassword = document.getElementById("newPass").value;
+  const username = sessionStorage.getItem("user");
+
+  if (!oldPassword || !newPassword) {
+    alert("Enter both old and new passwords");
+    return;
   }
 
-  const newUser = {
-    username,
-    password,
-    role: role || "user",
-    email,
-    salaryStatus: { date: null, isCredited: false }
-  };
+  fetch(`${backendURL}/api/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, oldPassword, newPassword })
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert(data.message);
+    })
+    .catch(err => {
+      console.error("Change password failed:", err);
+      alert("Password update failed");
+    });
+}
 
-  data.users.push(newUser);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+// Reset all users (keep admin)
+function resetAll() {
+  fetch(`${backendURL}/api/admin/reset`, {
+    method: "POST"
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert(data.message);
+      refresh(); // reload list
+    })
+    .catch(err => {
+      console.error("Reset failed:", err);
+      alert("Reset failed");
+    });
+}
 
-  // ✅ Send welcome email
-  sendEmail(email, "Welcome to Salary App", `Hi ${username}, your account is created!`);
+// Toggle dark mode
+function toggleTheme() {
+  document.body.classList.toggle("dark");
+}
 
-  res.json({ message: "User created successfully" });
-});
+// Logout
+function logout() {
+  sessionStorage.clear();
+  location.href = "index.html"; // go to login
+}
 
-// ✅ Set salary status for user
-router.post("/set-salary", (req, res) => {
-  const { username, date, isCredited } = req.body;
-
-  const data = JSON.parse(fs.readFileSync(filePath));
-  const user = data.users.find(u => u.username === username && u.role === "user");
-
-  if (!user) {
-    return res.status(400).json({ message: "User not found" });
-  }
-
-  user.salaryStatus = { date, isCredited };
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-  res.json({ message: "Salary status updated" });
-});
-
-// ✅ Get user list (only normal users)
-router.get("/list-users", (req, res) => {
-  const data = JSON.parse(fs.readFileSync(filePath));
-  res.json(data.users.filter(u => u.role === "user"));
-});
-
-// ✅ Reset all users (keep only admin)
-router.post("/reset", (req, res) => {
-  const data = JSON.parse(fs.readFileSync(filePath));
-  const onlyAdmin = data.users.filter(u => u.role === "admin");
-  fs.writeFileSync(filePath, JSON.stringify({ users: onlyAdmin }, null, 2));
-  res.json({ message: "All user data reset" });
-});
-
-module.exports = router;
+// Initial load
+window.onload = refresh;

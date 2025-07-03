@@ -44,3 +44,8 @@ router.get("/list-users", (req, res) => {
 });
 
 module.exports = router;
+router.post("/reset", (req, res) => {
+  const data = { users: [data.users[0]] }; // keep only admin
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  res.json({ message: "All user data reset" });
+});

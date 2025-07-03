@@ -69,6 +69,34 @@ router.post("/reset", (req, res) => {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   res.json({ message: "All user data reset" });
 });
+function createUser() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+  const role = document.getElementById("role").value;
+  const email = document.getElementById("email").value;
+
+  fetch("https://your-backend-url.onrender.com/api/admin/create-user", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password, role, email }),
+  })
+  .then(res => res.json())
+  .then(data => alert(data.message || "User created"))
+  .catch(err => alert("Error creating user"));
+}
+function setSalary() {
+  const username = document.getElementById("salaryUser").value;
+  const status = document.getElementById("status").value;
+
+  fetch("https://your-backend-url.onrender.com/api/admin/set-salary", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, status }),
+  })
+  .then(res => res.json())
+  .then(data => alert(data.message || "Salary status updated"))
+  .catch(err => alert("Error setting salary status"));
+}
 
 
 
